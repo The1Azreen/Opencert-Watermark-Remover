@@ -2,7 +2,8 @@ const { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } = r
 const fs = require("fs");
 const path = require("path");
 const { installHelpers } = require("./frame-helpers");
-const { exportSnapshots } = require("./pdf-export");
+const { exportSnapshots, sheetRatio } = require("./pdf-export");
+const { detectPages } = require("./page-detect");
 
 const ROOT = path.join(__dirname, "..", "..");
 const UI_DIR = path.join(ROOT, "dist");
@@ -118,7 +119,7 @@ const callFrame = async (win, method, ...args) => {
 // target: auto-attach to child frames and apply the emulation to each of them too.
 const previewState = new WeakMap(); // webContents -> { media, sessions }
 
-const setPrintPreview = async (win, on) => {
+const framePreview = async (win) => {
   const wc = win.webContents;
   const dbg = wc.debugger;
   let st = previewState.get(wc);
@@ -138,11 +139,35 @@ const setPrintPreview = async (win, on) => {
     });
     await dbg.sendCommand("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: false, flatten: true });
   }
+  return st;
+};
+
+const emulateFrameMedia = async (win, media) => {
+  const st = await framePreview(win);
+  const dbg = win.webContents.debugger;
+  await dbg.sendCommand("Emulation.setEmulatedMedia", { media });
+  await Promise.all([...st.sessions].map((id) => dbg.sendCommand("Emulation.setEmulatedMedia", { media }, id).catch(() => {})));
+};
+
+const setPrintPreview = async (win, on) => {
+  const st = await framePreview(win);
   st.media = on ? "print" : "";
-  await dbg.sendCommand("Emulation.setEmulatedMedia", { media: st.media });
-  await Promise.all(
-    [...st.sessions].map((id) => dbg.sendCommand("Emulation.setEmulatedMedia", { media: st.media }, id).catch(() => {}))
-  );
+  await emulateFrameMedia(win, st.media);
+};
+
+// Marks the renderer's own controls (shown on screen, hidden in print) so they are hidden
+// in the preview and left out of page detection and the PDF.
+const markRendererChrome = async (win) => {
+  const st = await framePreview(win);
+  if (st.media === "print") return 0; // print styles already hide them
+  await callFrame(win, "chromeBefore");
+  try {
+    await emulateFrameMedia(win, "print");
+    await callFrame(win, "chromeDuring");
+  } finally {
+    await emulateFrameMedia(win, st.media);
+  }
+  return callFrame(win, "chromeAfter");
 };
 
 // ---------- IPC ----------
@@ -171,6 +196,15 @@ ipcMain.handle("frame:call", (event, method, ...args) => {
 });
 
 ipcMain.handle("frame:snapshot", (event) => callFrame(winOf(event), "snapshot"));
+
+ipcMain.handle("frame:mark-chrome", (event) => (rendererFrame(winOf(event)) ? markRendererChrome(winOf(event)) : 0));
+
+// Automatic page regions for the current tab, in the frame's document pixels.
+ipcMain.handle("frame:detect-pages", (event, paper) => {
+  const frame = rendererFrame(winOf(event));
+  if (!frame) return null;
+  return frame.executeJavaScript(`(${detectPages.toString()})(${sheetRatio({ page: paper })})`);
+});
 
 ipcMain.handle("view:print-preview", (event, on) => setPrintPreview(winOf(event), on));
 

@@ -34,6 +34,7 @@
 
       <button id="btn-pick" class="btn ghost" aria-pressed="false" title="Click on parts of the certificate to hide them">Hide elements</button>
       <button id="btn-clear" class="btn ghost" hidden></button>
+      <button id="btn-pages" class="btn ghost" aria-pressed="false" title="See and adjust how the certificate is split into PDF pages">Pages</button>
 
       <div class="split">
         <button id="btn-export" class="btn primary">Export PDF</button>
@@ -93,6 +94,12 @@
         </div>
       </section>
       <div id="pick-hint" class="pick-hint" hidden>Click parts of the certificate to hide or show them. Hidden parts keep their space.</div>
+      <div id="pages-bar" class="pages-bar" hidden>
+        <span id="pages-count"></span>
+        <span class="pages-help">Drag to snip a page · drag a label to move · drag handles to resize · × or Delete to remove</span>
+        <button id="btn-pages-auto" class="btn small">Auto-detect</button>
+        <button id="btn-pages-done" class="btn small primary">Done</button>
+      </div>
       <div class="paper"><iframe id="renderer" title="Certificate"></iframe></div>
     </main>
 

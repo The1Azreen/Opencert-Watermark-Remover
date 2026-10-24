@@ -1,6 +1,7 @@
 import { connectToChild } from "penpal";
 import connectToChildV4 from "penpal-v4/lib/connectToChild";
 import { parseOpenCert } from "../shared/opencert";
+import { createPageEditor } from "./page-editor";
 
 const api = window.ocwr;
 const $ = (sel) => document.querySelector(sel);
@@ -19,7 +20,12 @@ const state = {
   report: null,
   lastFrameEvent: 0,
   busy: false,
+  editing: false, // page editor open
+  customPages: {}, // pageKey(tab) -> [{ x, y, w, h }] drawn or adjusted by the user
+  lockedWidth: null, // the frame width page regions refer to
 };
+
+let editor;
 
 const settings = loadSettings();
 
@@ -62,6 +68,7 @@ function frameDispatch(action) {
   switch (action.type) {
     case "UPDATE_HEIGHT":
       $("#renderer").style.height = `${Math.ceil(action.payload) + 20}px`;
+      if (editor.visible) editor.position($("#renderer"));
       refreshReport();
       break;
     case "UPDATE_TEMPLATES":
@@ -147,6 +154,10 @@ async function openCert(file) {
   state.selected = null;
   state.report = null;
   state.pick = false;
+  state.editing = false;
+  state.customPages = {};
+  state.lockedWidth = null;
+  editor.hide();
 
   document.body.classList.add("has-cert");
   $("#cert-name").textContent = cert.info.name;
@@ -176,7 +187,7 @@ async function openCert(file) {
     }
     await api.setPrintPreview(state.printView);
     await api.frame("setRemoval", state.removal);
-    await refreshReport();
+    await afterRender();
   } catch (e) {
     if (token !== loadToken) return;
     setStatus(e.message, "error", true);
@@ -225,7 +236,53 @@ async function selectTemplate(id) {
   renderTabs();
   toFrame({ type: "SELECT_TEMPLATE", payload: id });
   await settle();
+  await afterRender();
+}
+
+// After the renderer draws something new: hide its own controls, rescan for watermarks,
+// and refresh the page boxes.
+async function afterRender() {
+  await api.markChrome().catch(() => {});
   await refreshReport();
+  await refreshEditor();
+}
+
+// ---------------- page editor ----------------
+// Page regions depend on the layout, which differs between screen and print styles.
+const pageKey = (tab) => `${tab}|${state.printView ? "print" : "screen"}`;
+
+async function refreshEditor() {
+  if (!editor.visible) return;
+  editor.position($("#renderer"));
+  const custom = state.customPages[pageKey(state.selected)];
+  if (custom) {
+    editor.setPages(custom);
+  } else {
+    const detected = await api.detectPages(settings.page).catch(() => null);
+    editor.setPages(detected ? detected.pages : []);
+  }
+  updateControls();
+}
+
+// Page regions are in document pixels, so keep the layout width fixed from now on.
+function lockWidth() {
+  const iframe = $("#renderer");
+  if (!state.lockedWidth) state.lockedWidth = iframe.offsetWidth;
+  iframe.style.width = `${state.lockedWidth}px`;
+  iframe.style.maxWidth = "none";
+}
+
+async function setEditing(on) {
+  if (on && state.pick) await togglePick();
+  state.editing = on;
+  if (on) {
+    lockWidth();
+    editor.show();
+    await refreshEditor();
+  } else {
+    editor.hide();
+  }
+  updateControls();
 }
 
 // ---------------- watermark controls ----------------
@@ -241,7 +298,7 @@ async function refreshReport() {
 
 function updateControls() {
   const loaded = !!state.child;
-  for (const id of ["#toggle-print", "#toggle-removal", "#btn-pick", "#btn-export"]) $(id).disabled = !loaded || state.busy;
+  for (const id of ["#toggle-print", "#toggle-removal", "#btn-pick", "#btn-pages", "#btn-export"]) $(id).disabled = !loaded || state.busy;
   $("#toggle-print").checked = state.printView;
   $("#toggle-removal").checked = state.removal;
   $("#btn-pick").setAttribute("aria-pressed", String(state.pick));
@@ -262,24 +319,39 @@ function updateControls() {
   $("#btn-clear").hidden = !picked;
   $("#btn-clear").textContent = `Show ${picked} hidden`;
   $("#pick-hint").hidden = !state.pick;
+
+  $("#btn-pages").setAttribute("aria-pressed", String(state.editing));
+  $("#btn-pages").textContent = state.editing ? "Done with pages" : "Pages";
+  document.body.classList.toggle("editing-pages", state.editing);
+  $("#pages-bar").hidden = !state.editing;
+  if (state.editing) {
+    const custom = !!state.customPages[pageKey(state.selected)];
+    const count = editor.getPages().length;
+    $("#pages-count").textContent = `${count} page${count === 1 ? "" : "s"} · ${custom ? "custom" : "auto-detected"}`;
+    $("#btn-pages-auto").disabled = !custom;
+  }
 }
 
 async function setPrintView(on) {
   state.printView = on;
   await api.setPrintPreview(on);
-  updateControls();
+  await settle(300, 2000);
+  await afterRender();
 }
 
 async function setRemoval(on) {
   state.removal = on;
   state.report = await api.frame("setRemoval", on);
   updateControls();
+  await refreshEditor();
 }
 
 async function togglePick() {
+  if (!state.pick && state.editing) await setEditing(false);
   state.pick = !state.pick;
   state.report = await api.frame("setPick", state.pick);
   updateControls();
+  if (!state.pick) await refreshEditor();
 }
 
 // ---------------- export ----------------
@@ -309,7 +381,11 @@ async function exportPdf(opts) {
         toFrame({ type: "SELECT_TEMPLATE", payload: id });
         await settle();
       }
-      snapshots.push(await api.snapshot());
+      await api.markChrome().catch(() => {});
+      const snap = await api.snapshot();
+      const custom = state.customPages[pageKey(id)];
+      if (custom) snap.pages = custom;
+      snapshots.push(snap);
     }
     setBusy("Writing PDF…");
     const baseName = (state.cert.fileName || "certificate").replace(/\.[^.]+$/, "");
@@ -323,7 +399,7 @@ async function exportPdf(opts) {
     await api.frame("setRemoval", state.removal).catch(() => {});
     renderTabs();
     setBusy(null);
-    await refreshReport();
+    await afterRender();
   }
 }
 
@@ -382,6 +458,7 @@ function bindExportMenu() {
       input.type === "checkbox" ? input.checked : input.name === "scale" ? Number(input.value) || 1 : input.value;
     $("#export-menu [name=scale]").disabled = settings.fit;
     saveSettings();
+    if (input.name === "page") refreshEditor();
   });
   $("#btn-export-go").onclick = onExportClick;
 }
@@ -438,7 +515,21 @@ function init() {
   $("#btn-clear").onclick = async () => {
     state.report = await api.frame("clearPicks");
     updateControls();
+    await refreshEditor();
   };
+  editor = createPageEditor($(".paper"), {
+    onChange: (pages) => {
+      state.customPages[pageKey(state.selected)] = pages;
+      updateControls();
+    },
+  });
+  $("#btn-pages").onclick = () => setEditing(!state.editing);
+  $("#btn-pages-done").onclick = () => setEditing(false);
+  $("#btn-pages-auto").onclick = async () => {
+    delete state.customPages[pageKey(state.selected)];
+    await refreshEditor();
+  };
+  new ResizeObserver(() => editor.visible && editor.position($("#renderer"))).observe($(".paper"));
   $("#btn-export").onclick = onExportClick;
   bindExportMenu();
   bindDropZone();

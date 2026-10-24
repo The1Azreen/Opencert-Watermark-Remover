@@ -32,6 +32,24 @@ Many issuers' renderers add a watermark that only appears when the certificate i
 
 With **Print view** off (the default), the PDF uses the certificate's on-screen look, as on opencerts.io. Print-only watermarks never appear in that mode.
 
+## Splitting into pages
+
+Many certificates have tabs that are really several pages (a transcript, explanatory notes, a skills record). The app splits each tab into PDF pages automatically:
+
+- **Designed pages** (page breaks, or a stack of page-shaped cards) each become one page.
+- Anything else is **trimmed to its content**, so no wasted margins.
+- A page much taller than the sheet is **split only in whitespace** between text lines, images and table rows, never through text.
+
+Click **Pages** to see the boxes and adjust them like a snipping tool:
+
+- **Drag** anywhere to snip a new page (also inside an existing box)
+- **Drag a label** ("Page 1") to move a box, **drag the handles** to resize it
+- **×** or **Delete** removes a page; **Auto-detect** brings back the automatic boxes
+
+Every box becomes its own sheet, in reading order, scaled to fit and centred. Boxes are kept per tab, so you can lay out each tab differently before exporting **All tabs, one PDF**.
+
+![Page editor with two snipped pages on the demo certificate](docs/screenshots/page-editor.png)
+
 ## Export options
 
 ![Export options menu](docs/screenshots/export-options.png)
@@ -44,7 +62,8 @@ With **Print view** off (the default), the PDF uses the certificate's on-screen 
 - **Hide elements**: click any part of the certificate to hide it from the export
 - **Print view**: preview and export with the issuer's print styles instead of the on-screen look
 - **Export PDF**: current tab, all tabs merged into one PDF, or the issuer's print layout; A4/Letter/A3/A5/Legal/Tabloid; auto/portrait/landscape; optional margins
-- **Fit each page**: each designed page is placed on exactly one sheet, scaled to fit, as vector content
+- **Smart page splitting**: designed pages, content trimming, and whitespace-aware splitting of tall pages
+- **Pages editor**: snipping-tool style boxes to choose exactly what goes on each PDF page
 - Headless command-line export
 
 ## Running from source
@@ -72,7 +91,7 @@ npm run export -- path/to/cert.opencert [out.pdf] [options]
 | `--page A4\|Letter\|A3\|A5\|Legal\|Tabloid` | Sheet size (default A4) |
 | `--landscape` / `--portrait` | Force orientation (default: matches each page) |
 | `--margins none\|default` | Sheet margins (default none) |
-| `--no-fit` / `--scale <n>` | Don't fit designed pages to sheets; print at a fixed scale |
+| `--no-fit` / `--scale <n>` | Skip page detection; let the browser paginate at a fixed scale |
 
 ### Building the Windows exe
 
@@ -88,7 +107,8 @@ This writes the installer and the portable exe to `release/`.
 2. The renderer is loaded in an iframe and driven over the same penpal postMessage protocol opencerts.io uses (v4 and v6 handshakes, plus the legacy method API).
 3. Some issuers only allow opencerts.io to frame their renderer (`frame-ancestors`). The app lifts that header for its own viewer frame, locally.
 4. On export, a static snapshot of the rendered DOM is taken. CSS-in-JS rules, canvases and blob images are inlined, and watermark and hidden elements are removed. The snapshot is served at the renderer's own origin in a throwaway session, so fonts and images load exactly as before.
-5. The app finds the designed pages (explicit page breaks, or a stack of page-shaped blocks), prints each onto a PDF page sized to it, then places it on the chosen sheet as a vector form using [pdf-lib](https://pdf-lib.js.org).
+5. The snapshot is laid out at exactly the width you were viewing and printed as one tall vector page.
+6. Each page box (detected or drawn by you) is clipped out of that page and placed on its own sheet as a vector form using [pdf-lib](https://pdf-lib.js.org), so text stays selectable and images keep full resolution.
 
 ## Notes
 
@@ -101,7 +121,9 @@ This writes the installer and the portable exe to `release/`.
 ```
 src/main/main.js           Electron main process, IPC, CLI
 src/main/frame-helpers.js  Code injected into the renderer frame (watermark detection, pick mode, snapshot)
-src/main/pdf-export.js     Snapshot -> PDF pipeline
+src/main/pdf-export.js     Snapshot -> PDF pipeline (tall vector page -> clipped page regions -> sheets)
+src/main/page-detect.js    Automatic page detection and whitespace-aware splitting
+src/renderer/page-editor.js  Snipping-tool style page editor
 src/main/preload.js        Bridge exposed to the viewer UI
 src/shared/opencert.js     .opencert parsing
 src/renderer/              Viewer UI (bundled with esbuild into dist/)

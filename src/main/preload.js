@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("ocwr", {
   onFileOpened: (cb) => ipcRenderer.on("file:opened", (event, file) => cb(file)),
   frame: (method, ...args) => ipcRenderer.invoke("frame:call", method, ...args),
   snapshot: () => ipcRenderer.invoke("frame:snapshot"),
+  markChrome: () => ipcRenderer.invoke("frame:mark-chrome"),
+  detectPages: (paper) => ipcRenderer.invoke("frame:detect-pages", paper),
   setPrintPreview: (on) => ipcRenderer.invoke("view:print-preview", on),
   exportPdf: (snapshots, opts) => ipcRenderer.invoke("export:pdf", snapshots, opts),
   openPath: (p) => ipcRenderer.invoke("shell:open-path", p),

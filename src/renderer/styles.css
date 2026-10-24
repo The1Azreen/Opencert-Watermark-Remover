@@ -315,6 +315,7 @@ body {
 .paper {
   display: none;
   justify-content: center;
+  position: relative;
 }
 .has-cert .paper {
   display: flex;
@@ -344,6 +345,115 @@ body {
   font-size: 13px;
   box-shadow: var(--shadow);
 }
+
+/* ---------- page editor ---------- */
+.pages-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: -12px auto 12px;
+  width: fit-content;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+.pages-bar[hidden] {
+  display: none;
+}
+#pages-count {
+  font-weight: 600;
+}
+.pages-help {
+  color: var(--muted);
+}
+.btn.small {
+  padding: 3px 10px;
+  font-size: 13px;
+}
+.page-overlay {
+  position: absolute;
+  z-index: 3;
+  cursor: crosshair;
+  background: rgba(15, 23, 42, 0.18);
+  outline: none;
+  touch-action: none;
+}
+.page-overlay[hidden] {
+  display: none;
+}
+.page-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: rgba(255, 255, 255, 0.22);
+}
+.page-box.selected {
+  border-style: solid;
+  border-width: 3px;
+  background: rgba(76, 141, 255, 0.1);
+}
+.page-label {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: move;
+  user-select: none;
+}
+.page-del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: 600 16px/1 system-ui, sans-serif;
+  cursor: pointer;
+}
+.page-del:hover {
+  background: var(--error);
+}
+.handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 2px solid var(--accent);
+  border-radius: 3px;
+}
+.handle-n,
+.handle-s {
+  left: calc(50% - 6px);
+  cursor: ns-resize;
+}
+.handle-e,
+.handle-w {
+  top: calc(50% - 6px);
+  cursor: ew-resize;
+}
+.handle-n { top: -7px; }
+.handle-s { bottom: -7px; }
+.handle-e { right: -7px; }
+.handle-w { left: -7px; }
+.handle-nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.handle-se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+.handle-ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.handle-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
 
 .empty {
   height: 100%;

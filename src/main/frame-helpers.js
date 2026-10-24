@@ -7,6 +7,7 @@ function installHelpers() {
 
   const WM_ATTR = "data-ocwr-wm"; // "hide" | "bg": auto-detected watermark
   const PICK_ATTR = "data-ocwr-hide"; // hidden by the user in pick mode
+  const CHROME_ATTR = "data-ocwr-chrome"; // renderer UI (toolbars, print buttons)
   const STYLE_ID = "ocwr-removal-style";
   const WATERMARK_RE = /watermark/i;
 
@@ -106,8 +107,8 @@ function installHelpers() {
       style.id = STYLE_ID;
       (document.head || document.documentElement).appendChild(style);
     }
-    // Hidden user picks keep their layout space so the rest of the page doesn't shift.
-    const css = [`[${PICK_ATTR}]{visibility:hidden!important}`];
+    // Hidden user picks and renderer UI keep their layout space so nothing shifts.
+    const css = [`[${PICK_ATTR}]{visibility:hidden!important}`, `[${CHROME_ATTR}]{visibility:hidden!important}`];
     if (state.removal) {
       css.push(
         `[${WM_ATTR}="hide"]{display:none!important}`,
@@ -291,7 +292,40 @@ function installHelpers() {
       url: location.href,
       title: document.title,
       width: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
     };
+  };
+
+  // ---- renderer UI detection ----
+  // Renderer controls (toolbars, print buttons) show on screen but are hidden when printing.
+  // The main process switches the frame to print media between chromeBefore() and
+  // chromeDuring(), then back before chromeAfter(), which marks the small ones.
+  const SEEN_ATTR = "data-ocwr-seen";
+  const PRINT_HIDDEN_ATTR = "data-ocwr-print-hidden";
+  const chromeBefore = () => {
+    document.querySelectorAll(`[${CHROME_ATTR}]`).forEach((el) => el.removeAttribute(CHROME_ATTR));
+    for (const el of document.body.querySelectorAll("*")) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) el.setAttribute(SEEN_ATTR, Math.round(r.height));
+    }
+  };
+  const chromeDuring = () => {
+    for (const el of document.querySelectorAll(`[${SEEN_ATTR}]`)) {
+      const parent = el.parentElement;
+      if (getComputedStyle(el).display === "none" && parent && getComputedStyle(parent).display !== "none") {
+        el.setAttribute(PRINT_HIDDEN_ATTR, "");
+      }
+    }
+  };
+  const chromeAfter = () => {
+    const docHeight = document.documentElement.scrollHeight;
+    for (const el of document.querySelectorAll(`[${PRINT_HIDDEN_ATTR}]`)) {
+      if (Number(el.getAttribute(SEEN_ATTR)) < docHeight * 0.25) el.setAttribute(CHROME_ATTR, "");
+      el.removeAttribute(PRINT_HIDDEN_ATTR);
+    }
+    document.querySelectorAll(`[${SEEN_ATTR}]`).forEach((el) => el.removeAttribute(SEEN_ATTR));
+    return document.querySelectorAll(`[${CHROME_ATTR}]`).length;
   };
 
   // Templates re-render when tabs change; keep the marks up to date.
@@ -302,7 +336,7 @@ function installHelpers() {
     timer = setTimeout(scan, 150);
   }).observe(document.documentElement, { childList: true, subtree: true });
 
-  window.__ocwr = { scan, setRemoval, setPick, clearPicks, snapshot, report };
+  window.__ocwr = { scan, setRemoval, setPick, clearPicks, snapshot, report, chromeBefore, chromeDuring, chromeAfter };
   scan();
 }
 
