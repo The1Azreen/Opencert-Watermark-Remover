@@ -1,0 +1,68 @@
+{
+  "name": "opencert-watermark-remover",
+  "version": "0.1.0",
+  "description": "View OpenCerts (.opencert) files and export them to a clean, full-resolution PDF without the print watermark.",
+  "main": "src/main/main.js",
+  "author": "The1Azreen",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "start": "npm run build && electron .",
+    "export": "npm run build && electron . --export",
+    "dist": "node scripts/build.js --minify && electron-builder --win"
+  },
+  "build": {
+    "appId": "io.github.the1azreen.opencert-watermark-remover",
+    "productName": "OpenCert Watermark Remover",
+    "files": [
+      "src/main/**",
+      "src/shared/**",
+      "dist/**",
+      "package.json"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "opencert",
+        "name": "OpenCert certificate"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "directories": {
+      "output": "release"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "penpal": "^6.2.2",
+    "penpal-v4": "npm:penpal@^4.1.1"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  }
+}

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCert Watermark Remover</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="appbar">
+      <div class="cert-title">
+        <div id="cert-name" class="cert-name">OpenCert Watermark Remover</div>
+        <div id="cert-meta" class="cert-meta">Open a .opencert file to begin</div>
+      </div>
+      <button id="btn-open" class="btn">Open…</button>
+    </header>
+
+    <div class="toolbar" role="toolbar">
+      <nav id="tabs" class="tabs" role="tablist" hidden></nav>
+      <div class="spacer"></div>
+
+      <label class="switch" title="Off: export the certificate as it looks on screen (like opencerts.io). On: use the issuer's print layout, which is where print watermarks appear.">
+        <input type="checkbox" id="toggle-print" />
+        <span class="track"></span>
+        <span>Print view</span>
+      </label>
+
+      <label class="switch" title="Remove the print watermark from the preview and the exported PDF">
+        <input type="checkbox" id="toggle-removal" />
+        <span class="track"></span>
+        <span>Remove watermark</span>
+        <span id="wm-badge" class="badge" hidden></span>
+      </label>
+
+      <button id="btn-pick" class="btn ghost" aria-pressed="false" title="Click on parts of the certificate to hide them">Hide elements</button>
+      <button id="btn-clear" class="btn ghost" hidden></button>
+
+      <div class="split">
+        <button id="btn-export" class="btn primary">Export PDF</button>
+        <button id="btn-export-menu" class="btn primary caret" aria-haspopup="true" aria-expanded="false" aria-label="Export options">
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>
+        </button>
+        <div id="export-menu" class="menu" hidden>
+          <fieldset>
+            <legend>Pages</legend>
+            <label><input type="radio" name="pages" value="current" /> Current tab</label>
+            <label><input type="radio" name="pages" value="all" id="opt-pages-all" /> All tabs, one PDF</label>
+            <label><input type="radio" name="pages" value="print" id="opt-pages-print" /> Issuer's print layout</label>
+          </fieldset>
+          <div class="row">
+            <label>Paper
+              <select name="page">
+                <option>A4</option>
+                <option>Letter</option>
+                <option>A3</option>
+                <option>A5</option>
+                <option>Legal</option>
+                <option>Tabloid</option>
+              </select>
+            </label>
+            <label>Orientation
+              <select name="orientation">
+                <option value="auto">Auto</option>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label>Margins
+              <select name="margins">
+                <option value="none">None</option>
+                <option value="default">0.4 in</option>
+              </select>
+            </label>
+            <label>Scale
+              <input type="number" name="scale" min="0.1" max="2" step="0.05" />
+            </label>
+          </div>
+          <label class="check"><input type="checkbox" name="fit" /> Fit each page of the certificate onto one sheet</label>
+          <button id="btn-export-go" class="btn primary wide">Export PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="stage">
+      <section class="empty">
+        <div class="drop">
+          <svg width="48" height="48" viewBox="0 0 48 48" aria-hidden="true"><path d="M14 6h14l10 10v26H14z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" /><path d="M28 6v10h10M20 30l5 5 9-10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" /></svg>
+          <h1>Drop your .opencert file here</h1>
+          <p>The certificate is drawn by the issuer's own renderer, then exported straight to a vector PDF. No screenshots, so it keeps the original sharpness.</p>
+          <button id="btn-open-empty" class="btn primary">Choose file…</button>
+        </div>
+      </section>
+      <div id="pick-hint" class="pick-hint" hidden>Click parts of the certificate to hide or show them. Hidden parts keep their space.</div>
+      <div class="paper"><iframe id="renderer" title="Certificate"></iframe></div>
+    </main>
+
+    <div id="status" class="status" role="status" hidden></div>
+    <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busy-text"></span></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
